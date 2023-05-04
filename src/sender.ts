@@ -20,11 +20,11 @@ const data = fs.readFileSync(require.resolve('../public/1mb.txt'));
 // Creating hash from file (16 bytes)
 const hash = createHash("md5").update(data).digest();
 
-// Concatenating sequince number, hash and data
-const buffer = Buffer.concat([seqNo, hash, data]);
+// Concatenating hash and data
+const buffer = Buffer.concat([hash, data]);
 
-// Splitting buffer into packets
-const packets: Buffer[] = chunks(buffer, packetSize);
+// Splitting buffer into packets and prpending the sequence number 
+const packets: Buffer[] = chunks(buffer, packetSize).map((packet: Buffer) => Buffer.concat([seqNo, packet]));
 
 // Sending packets
 packets.forEach((packet, i) => {

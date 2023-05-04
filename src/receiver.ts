@@ -53,8 +53,8 @@ receiver.on('message', (message, info) => {
       // Setting buffer to message (excluding sequence number and hash)
       buffer = Buffer.concat([buffer, message.subarray(messageOffset, message.length)]);
     } else {
-      // Setting buffer to message
-      buffer = Buffer.concat([buffer, message]);
+      // Appending message to the buffer
+      buffer = Buffer.concat([buffer, message.subarray(4, message.length)]);
     }
 
     // Writing status to stdout
