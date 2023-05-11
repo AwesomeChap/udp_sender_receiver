@@ -11,6 +11,9 @@ const packetSize = PACKET_SIZE.MEDIUM;
 // Creating sender socket
 const sender = UDP.createSocket({ type: 'udp4', sendBufferSize: packetSize });
 
+// Setting transmission ID (2 bytes)
+const transmissionID = Buffer.from([0, 1]);
+
 // Setting sequince number to 0 (4 bytes)
 const seqNo = Buffer.from([0, 0, 0, 0]);
 
@@ -24,7 +27,7 @@ const hash = createHash("md5").update(data).digest();
 const buffer = Buffer.concat([hash, data]);
 
 // Splitting buffer into packets and prpending the sequence number 
-const packets: Buffer[] = chunks(buffer, packetSize).map((packet: Buffer) => Buffer.concat([seqNo, packet]));
+const packets: Buffer[] = chunks(buffer, packetSize).map((packet: Buffer) => Buffer.concat([transmissionID, seqNo, packet]));
 
 // Sending packets
 packets.forEach((packet, i) => {

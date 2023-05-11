@@ -3,11 +3,18 @@ import { HOSTNAME, PACKET_SIZE, PORT } from './global';
 import { createHash } from 'crypto';
 import chalk from 'chalk';
 
+const TRABSMISSION_ID_SIZE = 2;
+const SEQUENCE_NUMBER_SIZE = 4;
+const HASH_SIZE = 16;
+
+// Setting offsets
+const SEQUENCE_NUMBER_OFFSET = TRABSMISSION_ID_SIZE;
+const HASH_OFFSET = SEQUENCE_NUMBER_OFFSET + SEQUENCE_NUMBER_SIZE;
+const MESSAGE_OFFSET = SEQUENCE_NUMBER_OFFSET + SEQUENCE_NUMBER_SIZE;
+const FITST_PACKET_MESSAGE_OFFSET = SEQUENCE_NUMBER_OFFSET + SEQUENCE_NUMBER_SIZE + HASH_SIZE;
+
 // Setting packet size
 const packetSize = PACKET_SIZE.MEDIUM;
-
-// Setting message offset (4 bytes for sequence number, 16 bytes for hash)
-const messageOffset = 20;
 
 // Creating buffer to store message
 let buffer = Buffer.from([]);
@@ -48,13 +55,13 @@ receiver.on('message', (message, info) => {
   } else {
     if (noOfPacketsReceived === 1) {
       // Setting received hash
-      receivedHash = message.subarray(4, 20);
+      receivedHash = message.subarray(HASH_OFFSET, FITST_PACKET_MESSAGE_OFFSET);
 
       // Setting buffer to message (excluding sequence number and hash)
-      buffer = Buffer.concat([buffer, message.subarray(messageOffset, message.length)]);
+      buffer = Buffer.concat([buffer, message.subarray(FITST_PACKET_MESSAGE_OFFSET, message.length)]);
     } else {
       // Appending message to the buffer
-      buffer = Buffer.concat([buffer, message.subarray(4, message.length)]);
+      buffer = Buffer.concat([buffer, message.subarray(MESSAGE_OFFSET, message.length)]);
     }
 
     // Writing status to stdout
