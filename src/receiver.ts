@@ -1,20 +1,23 @@
 import UDP from 'dgram';
-import { HOSTNAME, PACKET_SIZE, PORT } from './global';
+import {
+  HOSTNAME,
+  PACKET_SIZE,
+  PORT,
+  TRANSMISSION_ID_SIZE,
+  SEQUENCE_NUMBER_SIZE,
+  SEQUENCE_NUMBER_OFFSET,
+  HASH_OFFSET,
+  MESSAGE_OFFSET,
+  FITST_PACKET_MESSAGE_OFFSET,
+  TRANSMISSION_START_MESSAGE,
+  TRANSMISSION_END_MESSAGE
+} from './global';
 import { createHash } from 'crypto';
 import chalk from 'chalk';
 
-const TRABSMISSION_ID_SIZE = 2;
-const SEQUENCE_NUMBER_SIZE = 4;
-const HASH_SIZE = 16;
-
-// Setting offsets
-const SEQUENCE_NUMBER_OFFSET = TRABSMISSION_ID_SIZE;
-const HASH_OFFSET = SEQUENCE_NUMBER_OFFSET + SEQUENCE_NUMBER_SIZE;
-const MESSAGE_OFFSET = SEQUENCE_NUMBER_OFFSET + SEQUENCE_NUMBER_SIZE;
-const FITST_PACKET_MESSAGE_OFFSET = SEQUENCE_NUMBER_OFFSET + SEQUENCE_NUMBER_SIZE + HASH_SIZE;
 
 // Setting packet size
-const packetSize = PACKET_SIZE.MEDIUM;
+const packetSize = PACKET_SIZE.SMALL;
 
 // Creating buffer to store message
 let buffer = Buffer.from([]);
@@ -30,26 +33,31 @@ receiver.on('listening', () => {
   // Address, the receiver is listening on
   const address = receiver.address();
   console.log(`Listening on ${chalk.white.bold(address.address + ":" + address.port)}\n`);
+
+  receiver.send(Buffer.from(TRANSMISSION_START_MESSAGE), PORT.SENDER, HOSTNAME, (err) => {
+    if (err) {
+      console.error('Error:', err);
+    }
+  })
 })
 
-// Setting number of packets received to 0
+// Setting number of packets received initially to 0
 let noOfPacketsReceived = 0;
 
 receiver.on('message', (message, info) => {
   // Updating number of packets received
   noOfPacketsReceived += 1;
 
-  if (message.toString() === "END") {
-    console.log("\n\nEND OF TRANSMISSION");
+  let transmissionID, sequenceNo;
 
+  if (message.toString() === TRANSMISSION_END_MESSAGE) {
     // Creating hash from received data
     const currentBufferHash = createHash("md5").update(buffer).digest();
-    
+
     // Comparing received hash and current buffer hash
     console.log("\n");
-    console.log(Buffer.compare(receivedHash, currentBufferHash) === 0 ? chalk.green.bold("No data loss detected!") : chalk.red.bold("Data loss detected!"));
-    console.log("\n");
-    
+    console.log(Buffer.compare(receivedHash, currentBufferHash) === 0 ? chalk.green.bold("No data loss detected!\n") : chalk.red.bold("Data loss detected!\n"));
+
     // Closing receiver socket
     receiver.close();
   } else {
@@ -64,10 +72,22 @@ receiver.on('message', (message, info) => {
       buffer = Buffer.concat([buffer, message.subarray(MESSAGE_OFFSET, message.length)]);
     }
 
+    transmissionID = message.subarray(0, TRANSMISSION_ID_SIZE);
+    sequenceNo = message.subarray(SEQUENCE_NUMBER_OFFSET, SEQUENCE_NUMBER_OFFSET + SEQUENCE_NUMBER_SIZE);
+
+    const acknowledgement = Buffer.concat([transmissionID, sequenceNo]);
+
+    // Sending acknowledgement
+    receiver.send(acknowledgement, PORT.SENDER, HOSTNAME, (err) => {
+      if (err) {
+        console.error('Error:', err);
+      }
+    });
+
     // Writing status to stdout
     process.stdout.write("\r\x1b[K");
-    process.stdout.write(`${noOfPacketsReceived} Packet(s) received successfully!`);
+    process.stdout.write(`${chalk.yellow(noOfPacketsReceived)} Packet(s) received successfully!`);
   }
 })
 
-receiver.bind({ port: PORT, address: HOSTNAME });
+receiver.bind({ port: PORT.RECEIVER, address: HOSTNAME });

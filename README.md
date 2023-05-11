@@ -4,9 +4,9 @@ A basic NodeJS implementation of a udp sender and receiver. The core of the impl
 
 ## Available scripts
 
-```js
-  npm run receiver    // To start the receiver
-  npm run sender      // To start the sender
+```shell
+  npm run sender      # To start the sender
+  npm run receiver    # To start the receiver
 ```
 
 ![No data loss image](/public/no_loss_detected.png)
