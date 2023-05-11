@@ -1,5 +1,5 @@
 import UDP from 'dgram';
-import { HOSTNAME, PACKET_SIZE, PORT, SEQUENCE_NUMBER_OFFSET, SEQUENCE_NUMBER_SIZE, TRANSMISSION_END_MESSAGE, TRANSMISSION_ID_SIZE, TRANSMISSION_START_MESSAGE } from './global';
+import { HOSTNAME, MAX_RETRIES, PACKET_SIZE, PORT, SEQUENCE_NUMBER_OFFSET, SEQUENCE_NUMBER_SIZE, TRANSMISSION_END_MESSAGE, TRANSMISSION_ID_SIZE, TRANSMISSION_START_MESSAGE } from './global';
 import { createHash } from 'crypto';
 import fs from 'fs';
 import { numberToBuffer } from './utils';
@@ -33,6 +33,9 @@ let startTime = 0;
 
 // Setting end time initially to 0 milliseconds
 let endTime = 0;
+
+// Setting number of retry attempts initially to 0
+let retryAttempts = 0;
 
 /*
 * Function to send packet
@@ -107,12 +110,26 @@ sender.on('message', (message, info) => {
     const successfulTransmission = message.equals(Buffer.concat([prevPacketTransmissionID, prevPacketSeqNo]));
 
     if (successfulTransmission) {
+      // Resetting retry attempts to 0
+      retryAttempts = 0;
+
       // Sending next packet
       sendPacket(packets[noOfPacketsSent]);
     }
   
     // Resending previous packet if transmission was unsuccessful
     if(!successfulTransmission) {
+      retryAttempts += 1;
+
+      if(retryAttempts > MAX_RETRIES) {
+        console.log("\n");
+        console.log(`${chalk.red.bold("ERROR:")} Maximum number of retries reached. Ending transmisson...\n`);
+
+        // Closing sender socket
+        sender.close();
+        process.exit(0);
+      }
+
       noOfPacketsSent -= 1;
       sendPacket(packets[noOfPacketsSent]);
     }
