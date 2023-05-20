@@ -8,7 +8,7 @@ import chunks from 'buffer-chunks';
 import chalk from 'chalk';
 
 // Setting packet size
-const packetSize = PACKET_SIZE.MEDIUM;
+const packetSize = PACKET_SIZE.SMALL;
 
 // Creating sender socket
 const sender = UDP.createSocket({ type: 'udp4', sendBufferSize: packetSize });
@@ -59,8 +59,8 @@ const sendPacket = (packet: Buffer) => {
     }
 
     if (noOfPacketsSent === packets.length) {
-       // Setting end time
-       endTime = Date.now();
+      // Setting end time
+      endTime = Date.now();
 
       // Closing sender socket
       console.log("\n");
@@ -104,10 +104,10 @@ sender.on('message', (message, info) => {
     sendPacket(packets[0]);
   }
 
-  if(noOfPacketsSent > 0) {
+  if (noOfPacketsSent > 0) {
     const prevPacketTransmissionID = packets[noOfPacketsSent - 1].subarray(0, TRANSMISSION_ID_SIZE);
     const prevPacketSeqNo = packets[noOfPacketsSent - 1].subarray(SEQUENCE_NUMBER_OFFSET, SEQUENCE_NUMBER_OFFSET + SEQUENCE_NUMBER_SIZE);
-    
+
     const successfulTransmission = message.equals(Buffer.concat([prevPacketTransmissionID, prevPacketSeqNo]));
 
     if (successfulTransmission) {
@@ -117,12 +117,12 @@ sender.on('message', (message, info) => {
       // Sending next packet
       sendPacket(packets[noOfPacketsSent]);
     }
-  
+
     // Resending previous packet if transmission was unsuccessful
-    if(!successfulTransmission) {
+    if (!successfulTransmission) {
       retryAttempts += 1;
 
-      if(retryAttempts > MAX_RETRIES) {
+      if (retryAttempts > MAX_RETRIES) {
         console.log("\n");
         console.log(`${chalk.red.bold("ERROR:")} Maximum number of retries reached. Ending transmisson...\n`);
 

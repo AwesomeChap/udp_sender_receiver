@@ -17,7 +17,7 @@ import chalk from 'chalk';
 
 
 // Setting packet size
-const packetSize = PACKET_SIZE.MEDIUM;
+const packetSize = PACKET_SIZE.SMALL;
 
 // Creating buffer to store message
 let buffer = Buffer.from([]);
