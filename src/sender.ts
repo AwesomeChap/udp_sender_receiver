@@ -8,7 +8,7 @@ import chunks from 'buffer-chunks';
 import chalk from 'chalk';
 
 // Setting packet size
-const packetSize = PACKET_SIZE.SMALL;
+const packetSize = PACKET_SIZE.MEDIUM;
 
 // Creating sender socket
 const sender = UDP.createSocket({ type: 'udp4', sendBufferSize: packetSize });
@@ -50,9 +50,12 @@ const sendPacket = (packet: Buffer) => {
       // incrementing number of packets sent by 1
       noOfPacketsSent += 1;
 
+      const timeElapsed = Date.now() - startTime;
+      const transmissionRate = (noOfPacketsSent * packetSize) / (timeElapsed * 1000);
+
       // Writing status to stdout
       process.stdout.write("\r\x1b[K");
-      process.stdout.write(`(${chalk.yellow(noOfPacketsSent)}/${packets.length}) Packet(s) sent successfully!`);
+      process.stdout.write(`Packets sent: ${chalk.yellow(noOfPacketsSent)}/${packets.length}      Transmission rate: ${chalk.green(transmissionRate.toFixed(3))} kB/s      Time elapsed: ${chalk.yellow(timeElapsed)} ms`);
     }
 
     if (noOfPacketsSent === packets.length) {
@@ -67,8 +70,6 @@ const sendPacket = (packet: Buffer) => {
         } else {
           console.log(chalk.bold("END OF TRANSMISSION\n"));
           sender.close();
-
-          console.log(`Transimission took ${chalk.yellow(endTime - startTime)} milliseconds\n`)
         }
       })
     }

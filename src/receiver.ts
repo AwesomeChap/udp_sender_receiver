@@ -17,7 +17,7 @@ import chalk from 'chalk';
 
 
 // Setting packet size
-const packetSize = PACKET_SIZE.SMALL;
+const packetSize = PACKET_SIZE.MEDIUM;
 
 // Creating buffer to store message
 let buffer = Buffer.from([]);
@@ -37,12 +37,21 @@ receiver.on('listening', () => {
   receiver.send(Buffer.from(TRANSMISSION_START_MESSAGE), PORT.SENDER, HOSTNAME, (err) => {
     if (err) {
       console.error('Error:', err);
+    } else {
+      // Setting start time
+      startTime = Date.now();
     }
   })
 })
 
 // Setting number of packets received initially to 0
 let noOfPacketsReceived = 0;
+
+// Setting start time initially to 0 milliseconds
+let startTime = 0;
+
+// Setting end time initially to 0 milliseconds
+let endTime = 0;
 
 receiver.on('message', (message, info) => {
   // Updating number of packets received
@@ -51,6 +60,9 @@ receiver.on('message', (message, info) => {
   let transmissionID, sequenceNo;
 
   if (message.toString() === TRANSMISSION_END_MESSAGE) {
+    // Setting end time
+    endTime = Date.now();
+
     // Creating hash from received data
     const currentBufferHash = createHash("md5").update(buffer).digest();
 
@@ -84,9 +96,12 @@ receiver.on('message', (message, info) => {
       }
     });
 
+    const timeElapsed = Date.now() - startTime;
+    const receivingRate = (noOfPacketsReceived * packetSize) / (timeElapsed * 1000);
+
     // Writing status to stdout
     process.stdout.write("\r\x1b[K");
-    process.stdout.write(`${chalk.yellow(noOfPacketsReceived)} Packet(s) received successfully!`);
+    process.stdout.write(`Packets received: ${chalk.yellow(noOfPacketsReceived)}      Receiving rate: ${chalk.green(receivingRate.toFixed(3))} kB/s      Time elapsed: ${chalk.yellow(timeElapsed)} ms`);
   }
 })
 
