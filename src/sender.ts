@@ -37,6 +37,9 @@ let endTime = 0;
 // Setting number of retry attempts initially to 0
 let retryAttempts = 0;
 
+// Setting transmission rate sum initially to 0 - would be used to calculate average transmission rate
+let transmissionRateSum = 0;
+
 /*
 * Function to send packet
 * @param packet - Packet to be sent
@@ -52,10 +55,11 @@ const sendPacket = (packet: Buffer) => {
 
       const timeElapsed = Date.now() - startTime;
       const transmissionRate = (noOfPacketsSent * packetSize) / (timeElapsed * 1000);
+      transmissionRateSum += transmissionRate;
 
       // Writing status to stdout
       process.stdout.write("\r\x1b[K");
-      process.stdout.write(`Packets sent: ${chalk.yellow(noOfPacketsSent)}/${packets.length}      Transmission rate: ${chalk.green(transmissionRate.toFixed(3))} kB/s      Time elapsed: ${chalk.yellow(timeElapsed)} ms`);
+      process.stdout.write(`Packets sent: ${chalk.yellow(noOfPacketsSent)}/${packets.length}      Transmission rate: ${chalk.green(transmissionRate.toFixed(3))} MB/s      Time elapsed: ${chalk.yellow(timeElapsed)} ms`);
     }
 
     if (noOfPacketsSent === packets.length) {
@@ -70,6 +74,9 @@ const sendPacket = (packet: Buffer) => {
         } else {
           console.log(chalk.bold("END OF TRANSMISSION\n"));
           sender.close();
+
+          const averageTransmissionRate = transmissionRateSum/noOfPacketsSent;
+          console.log(`Average transmission rate: ${chalk.green(averageTransmissionRate.toFixed(3))} MB/s\n`);
         }
       })
     }

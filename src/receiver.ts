@@ -53,6 +53,9 @@ let startTime = 0;
 // Setting end time initially to 0 milliseconds
 let endTime = 0;
 
+// Setting receiving rate sum initially to 0 - would be used to calculate average receiving rate
+let receivingRateSum = 0;
+
 receiver.on('message', (message, info) => {
   // Updating number of packets received
   noOfPacketsReceived += 1;
@@ -72,6 +75,9 @@ receiver.on('message', (message, info) => {
 
     // Closing receiver socket
     receiver.close();
+
+    const averageReceivingRate = receivingRateSum / noOfPacketsReceived;
+    console.log(`Average receiving rate: ${chalk.green(averageReceivingRate.toFixed(3))} MB/s\n`);
   } else {
     if (noOfPacketsReceived === 1) {
       // Setting received hash
@@ -98,10 +104,11 @@ receiver.on('message', (message, info) => {
 
     const timeElapsed = Date.now() - startTime;
     const receivingRate = (noOfPacketsReceived * packetSize) / (timeElapsed * 1000);
+    receivingRateSum += receivingRate;
 
     // Writing status to stdout
     process.stdout.write("\r\x1b[K");
-    process.stdout.write(`Packets received: ${chalk.yellow(noOfPacketsReceived)}      Receiving rate: ${chalk.green(receivingRate.toFixed(3))} kB/s      Time elapsed: ${chalk.yellow(timeElapsed)} ms`);
+    process.stdout.write(`Packets received: ${chalk.yellow(noOfPacketsReceived)}      Receiving rate: ${chalk.green(receivingRate.toFixed(3))} MB/s      Time elapsed: ${chalk.yellow(timeElapsed)} ms`);
   }
 })
 
