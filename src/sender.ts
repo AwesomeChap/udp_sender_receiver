@@ -3,6 +3,7 @@ import {
   HOSTNAME,
   PACKET_SIZE,
   PORT,
+  WINDOW_SIZE
 } from './global';
 import { createHash } from 'crypto';
 import fs from 'fs';
@@ -38,9 +39,6 @@ let startTime = 0;
 // Setting end time initially to 0 milliseconds
 let endTime = 0;
 
-// Setting number of retry attempts initially to 0
-let retryAttempts = 0;
-
 // Setting transmission rate sum initially to 0 - would be used to calculate average transmission rate
 let transmissionRateSum = 0;
 
@@ -61,6 +59,18 @@ const lastPacket = Buffer.concat([transmissionID, numberToBuffer(packets.length 
 packets = [firstPacket, ...packets, lastPacket];
 
 /*
+* Function to send packets
+* @param n - Number of packets to be sent
+* @return void;
+*/
+const sendPackets = (n: number) => {
+  for (let i = 0; i < n; i++) {
+    const base = noOfPacketsSent < WINDOW_SIZE ? 0 : noOfPacketsSent;
+    sendPacket(packets[base + i]);
+  }
+}
+
+/*
 * Function to send packet
 * @param packet - Packet to be sent
 * @return void;
@@ -74,7 +84,6 @@ const sendPacket = (packet: Buffer) => {
       noOfPacketsSent += 1;
 
       const timeElapsed = Date.now() - startTime;
-      // TODO: Calculate transmission rate for first packet and last packet
       const transmissionRate = (noOfPacketsSent * packetSize) / (timeElapsed * 1000);
       transmissionRateSum += transmissionRate;
 
@@ -95,17 +104,26 @@ sender.on('listening', () => {
   startTime = Date.now();
 
   // Sending first packet
-  sendPacket(packets[0]);
+  sendPackets(WINDOW_SIZE);
 })
 
 // Listening for acknowledgement of packets and sending them
 sender.on('message', (message, info) => {
   if (noOfPacketsSent > 0) {
+    let seqNo = bufferToNumber(message.subarray(2, 6), 4);
+
     // Determining if transmission has reached its end
-    if (bufferToNumber(message.subarray(2, 6), 4) === packets.length - 1) {
+    if (seqNo === packets.length - 1) {
       sender.close();
     } else {
-      sendPacket(packets[noOfPacketsSent]);
+      const n = packets.length - noOfPacketsSent > WINDOW_SIZE ? WINDOW_SIZE : packets.length - noOfPacketsSent;
+      if (seqNo === noOfPacketsSent - 1) {
+        sendPackets(n);
+      } else if (seqNo < noOfPacketsSent - 1) {
+        // Resend packets
+        noOfPacketsSent = seqNo + 1;
+        sendPackets(n);
+      }
     }
   }
 })
