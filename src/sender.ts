@@ -1,8 +1,12 @@
 import UDP from 'dgram';
-import { HOSTNAME, MAX_RETRIES, PACKET_SIZE, PORT, SEQUENCE_NUMBER_OFFSET, SEQUENCE_NUMBER_SIZE, TRANSMISSION_END_MESSAGE, TRANSMISSION_ID_SIZE, TRANSMISSION_START_MESSAGE } from './global';
+import {
+  HOSTNAME,
+  PACKET_SIZE,
+  PORT,
+} from './global';
 import { createHash } from 'crypto';
 import fs from 'fs';
-import { numberToBuffer } from './utils';
+import { bufferToNumber, numberToBuffer } from './utils';
 //@ts-ignore
 import chunks from 'buffer-chunks';
 import chalk from 'chalk';
@@ -23,7 +27,7 @@ const data = fs.readFileSync(require.resolve('../public/1mb.txt'));
 const hash = createHash("md5").update(data).digest();
 
 // Concatenating hash and data
-const buffer = Buffer.concat([hash, data]);
+const buffer = Buffer.concat([data]);
 
 // Setting number of packets sent initially to 0
 let noOfPacketsSent = 0;
@@ -40,6 +44,22 @@ let retryAttempts = 0;
 // Setting transmission rate sum initially to 0 - would be used to calculate average transmission rate
 let transmissionRateSum = 0;
 
+// Splitting buffer into packets and prpending the sequence number 
+let packets: Buffer[] = chunks(buffer, packetSize).map((packet: Buffer, index: number) => {
+  // Setting sequence number to 0 (4 bytes)
+  const seqNo = numberToBuffer(index + 1, 4);
+
+  return Buffer.concat([transmissionID, seqNo, packet]);
+});
+
+// Creating first packet
+const firstPacket = Buffer.concat([transmissionID, numberToBuffer(0, 4), numberToBuffer(packets.length + 1, 4), Buffer.from('1mb.txt', 'utf-8')]);
+
+// Creating last packet
+const lastPacket = Buffer.concat([transmissionID, numberToBuffer(packets.length + 1, 4), hash]);
+
+packets = [firstPacket, ...packets, lastPacket];
+
 /*
 * Function to send packet
 * @param packet - Packet to be sent
@@ -54,6 +74,7 @@ const sendPacket = (packet: Buffer) => {
       noOfPacketsSent += 1;
 
       const timeElapsed = Date.now() - startTime;
+      // TODO: Calculate transmission rate for first packet and last packet
       const transmissionRate = (noOfPacketsSent * packetSize) / (timeElapsed * 1000);
       transmissionRateSum += transmissionRate;
 
@@ -61,88 +82,44 @@ const sendPacket = (packet: Buffer) => {
       process.stdout.write("\r\x1b[K");
       process.stdout.write(`Packets sent: ${chalk.yellow(noOfPacketsSent)}/${packets.length}      Transmission rate: ${chalk.green(transmissionRate.toFixed(3))} MB/s      Time elapsed: ${chalk.yellow(timeElapsed)} ms`);
     }
-
-    if (noOfPacketsSent === packets.length) {
-      // Setting end time
-      endTime = Date.now();
-
-      // Closing sender socket
-      console.log("\n");
-      sender.send(Buffer.from(TRANSMISSION_END_MESSAGE), PORT.RECEIVER, HOSTNAME, (err) => {
-        if (err) {
-          console.error('Error:', err);
-        } else {
-          console.log(chalk.bold("END OF TRANSMISSION\n"));
-          sender.close();
-
-          const averageTransmissionRate = transmissionRateSum/noOfPacketsSent;
-          console.log(`Average transmission rate: ${chalk.green(averageTransmissionRate.toFixed(3))} MB/s\n`);
-        }
-      })
-    }
   })
 }
-
-// Splitting buffer into packets and prpending the sequence number 
-const packets: Buffer[] = chunks(buffer, packetSize).map((packet: Buffer, index: number) => {
-  // Setting sequince number to 0 (4 bytes)
-  const seqNo = numberToBuffer(index, 4);
-
-  return Buffer.concat([transmissionID, seqNo, packet]);
-});
 
 sender.on('listening', () => {
   // Address, the receiver is listening on
   const address = sender.address();
   console.log(`Listening on ${chalk.white.bold(address.address + ":" + address.port)}\n`);
+  console.log(chalk.bold("\nSTART OF TRANSMISSION\n"));
+
+  // Setting start time
+  startTime = Date.now();
+
+  // Sending first packet
+  sendPacket(packets[0]);
 })
 
 // Listening for acknowledgement of packets and sending them
 sender.on('message', (message, info) => {
-  const receiverReady = message.toString() === TRANSMISSION_START_MESSAGE;
-
-  if (receiverReady) {
-    console.log(chalk.bold("\nSTART OF TRANSMISSION\n"));
-
-    // Setting start time
-    startTime = Date.now();
-
-    // Sending first packet
-    sendPacket(packets[0]);
-  }
-
   if (noOfPacketsSent > 0) {
-    const prevPacketTransmissionID = packets[noOfPacketsSent - 1].subarray(0, TRANSMISSION_ID_SIZE);
-    const prevPacketSeqNo = packets[noOfPacketsSent - 1].subarray(SEQUENCE_NUMBER_OFFSET, SEQUENCE_NUMBER_OFFSET + SEQUENCE_NUMBER_SIZE);
-
-    const successfulTransmission = message.equals(Buffer.concat([prevPacketTransmissionID, prevPacketSeqNo]));
-
-    if (successfulTransmission) {
-      // Resetting retry attempts to 0
-      retryAttempts = 0;
-
-      // Sending next packet
-      sendPacket(packets[noOfPacketsSent]);
-    }
-
-    // Resending previous packet if transmission was unsuccessful
-    if (!successfulTransmission) {
-      retryAttempts += 1;
-
-      if (retryAttempts > MAX_RETRIES) {
-        console.log("\n");
-        console.log(`${chalk.red.bold("ERROR:")} Maximum number of retries reached. Ending transmisson...\n`);
-
-        // Closing sender socket
-        sender.close();
-        process.exit(0);
-      }
-
-      noOfPacketsSent -= 1;
+    // Determining if transmission has reached its end
+    if (bufferToNumber(message.subarray(2, 6), 4) === packets.length - 1) {
+      sender.close();
+    } else {
       sendPacket(packets[noOfPacketsSent]);
     }
   }
+})
 
+sender.on('close', () => {
+  // Setting end time
+  endTime = Date.now();
+
+  // Closing sender socket
+  console.log("\n");
+  console.log(chalk.bold("END OF TRANSMISSION\n"));
+
+  const averageTransmissionRate = transmissionRateSum / noOfPacketsSent;
+  console.log(`Average transmission rate: ${chalk.green(averageTransmissionRate.toFixed(3))} MB/s\n`);
 })
 
 sender.bind({ port: PORT.SENDER, address: HOSTNAME });
